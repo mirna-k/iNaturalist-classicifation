@@ -3,7 +3,8 @@
 Potrebno je izgraditi riješenje u Pythonu za klasifikaciju biljaka i životinja na temelju dostupnih skupova podataka (iNaturalist) te pripadnu aplikaciju. Potrebno je primjeniti koncept *one shot learning* ili *few shot learning*, gdje se model trenira da prepoznaje klasu novih primjera na temelju vrlo malo označenih primjera.
 
 https://blog.paperspace.com/few-shot-learning/ \
-https://pytorch.org/vision/stable/models.html
+https://pytorch.org/vision/stable/models.html \
+https://mobidev.biz/blog/few-shot-learning-explained-examples-applications-research
 
 ##### TO DO:
 1. odabrati model koji je treniran za raspoznavanje značajki i uzoraka + upariti ga s sijamskom mrežom
