@@ -1,5 +1,7 @@
 # Klasifikacija rijetkih biljaka i životinja
 
+##### LINK: https://inaturalist-classicifation.streamlit.app/
+
 Potrebno je izgraditi riješenje u Pythonu za klasifikaciju biljaka i životinja na temelju dostupnih skupova podataka (iNaturalist) te pripadnu aplikaciju. Potrebno je primjeniti koncept *one shot learning* ili *few shot learning*, gdje se model trenira da prepoznaje klasu novih primjera na temelju vrlo malo označenih primjera.
 
 https://blog.paperspace.com/few-shot-learning/ \
