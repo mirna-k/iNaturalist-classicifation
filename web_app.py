@@ -9,38 +9,43 @@ import torchvision.transforms as transforms
 import streamlit as st
 
 class SupportSet():
-    def __init__(self, support_dir, class_name, label, transform=None):
-      self.class_name = class_name
-      self.label = label
-      self.images = []
+    def __init__(self, support_dir, class_name, label, cro_name, description, transform=None):
+        self.class_name = class_name
+        self.label = label
+        self.cro_name = cro_name
+        self.description = description
+        self.images = []
 
-      images_paths = [os.path.join(support_dir, filename) for filename in os.listdir(support_dir)]
-      to_tensor = transforms.ToTensor()
-      for image_path in images_paths:
-          image = Image.open(image_path)
-          if transform:
-              image = transform(image)
-          image = to_tensor(image)
-          self.images.append(image)
+        images_paths = [os.path.join(support_dir, filename) for filename in os.listdir(support_dir)]
+        to_tensor = transforms.ToTensor()
+        for image_path in images_paths:
+            image = Image.open(image_path)
+            if transform:
+                image = transform(image)
+            image = to_tensor(image)
+            self.images.append(image)
 
-      self.images = torch.stack(self.images)
-      self.len = len(self.images)
+        self.images = torch.stack(self.images)
+        self.len = len(self.images)
 
-      def __len__(self):
+    def __len__(self):
         return self.len
 
 def getSupportSets(dataset_dir, class_label_map_json, transform=None):
     sets = {}
 
     with open(class_label_map_json, 'r') as f:
-            class_label_map = json.load(f)
+        class_label_map = json.load(f)
 
-    for class_name, label in class_label_map.items():
-          class_dir = os.path.join(dataset_dir, class_name)
-          if os.path.isdir(class_dir):
-              support_dir = os.path.join(class_dir, "support")
-              sets[label] = SupportSet(support_dir, class_name, label, transform)
-
+    for class_name, attributes in class_label_map.items():
+        label = attributes['label']
+        cro_name = attributes['cro_name']
+        description = attributes['description']
+        
+        class_dir = os.path.join(dataset_dir, class_name)
+        if os.path.isdir(class_dir):
+            support_dir = os.path.join(class_dir, "support")
+            sets[label] = SupportSet(support_dir, class_name, label, cro_name, description, transform)
     return sets
 
 def getSupportSetsEmbeddings(model, support_sets, device):
@@ -126,6 +131,7 @@ def predict(image):
     print(prediction)
     return prediction
 
+classes = getSupportSets('iNaturalist dataset', 'label_map.json')
 
 st.title("Klasifikacija rijetkih životinja")
 
@@ -134,13 +140,13 @@ uploaded_image = st.file_uploader("Choose an image...", type=["jpg", "png", "jpe
 if st.button('Process Image'):
     if uploaded_image is not None:
         image = Image.open(uploaded_image)
-        prediction = predict(image)
+        prediction_label = predict(image)
 
         st.image(image, caption='Uploaded Image.', use_column_width=True)
         
         st.text("Processing the image...")
 
-        result = f"Prediction is {prediction}"
+        result = f"Predpostavljena vrsta je {classes[prediction_label].class_name}\nNaziv: {classes[prediction_label].cro_data}\n{classes[prediction_label].description}"
         
         st.text(result)
     else:
