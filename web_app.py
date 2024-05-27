@@ -71,8 +71,6 @@ class SiameseNetwork(nn.Module):
         if x.dim() == 3:
             x = x.unsqueeze(0)
 
-        #x = x.to(self.device)
-
         embeddings = self.feature_extractor(x)  # torch.Size([img_num, 256])
 
         embeddings = F.normalize(embeddings, p=2, dim=1)
@@ -122,7 +120,7 @@ def preprocess_image(image):
     image = to_tensor(image)
     return image
 
-# Function to make a prediction
+
 def predict(image):
     processed_image = preprocess_image(image)
     processed_image = processed_image.to(torch.float32)
@@ -130,6 +128,7 @@ def predict(image):
     prediction = siamese_network(processed_image)
     print(prediction)
     return prediction
+
 
 classes = getSupportSets('iNaturalist dataset', 'label_map.json')
 
@@ -146,7 +145,7 @@ if st.button('Process Image'):
         
         st.text("Processing the image...")
 
-        result = f"Predpostavljena vrsta je {classes[prediction_label].class_name}\nNaziv: {classes[prediction_label].cro_data}\n{classes[prediction_label].description}"
+        result = f"Predpostavljena vrsta je {classes[prediction_label[0]].class_name}\nNaziv: {classes[prediction_label[0]].cro_name}\n{classes[prediction_label[0]].description}"
         
         st.text(result)
     else:
