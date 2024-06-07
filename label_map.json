@@ -23,7 +23,7 @@
         "label": 4,
         "cro_name": "Australijski morski medvjed",
         "description": "Australijski morski medvjed je vrsta ušatog tuljana koji živi u obalnim vodama Australije i Novog Zelanda."
-      },
+    },
     "Ardea herodias": {
         "label": 5,
         "cro_name": "Velika plava čaplja",
@@ -38,7 +38,7 @@
         "label": 7,
         "cro_name": "Smeđi ljenivac",
         "description": "Smeđi ljenivac je sporopokretna životinja koja živi u tropskim šumama Srednje i Južne Amerike."
-      },
+    },
     "Cebus imitator": {
         "label": 8,
         "cro_name": "Bijeloliki kapucin",
@@ -53,7 +53,7 @@
         "label": 10,
         "cro_name": "Pjegava hijena",
         "description": "Pjegava hijena je velika vrsta hijene koja živi u subsaharskoj Africi."
-      },
+    },
     "Fratercula arctica": {
         "label": 11,
         "cro_name": "Atlantski puffin",
@@ -68,7 +68,7 @@
         "label": 13,
         "cro_name": "Ocelot",
         "description": "Ocelot je vrsta divlje mačke koja živi u tropskim šumama Srednje i Južne Amerike."
-      },
+    },
     "Martes martes": {
         "label": 14,
         "cro_name": "Kuna zlatica",
@@ -78,7 +78,7 @@
         "label": 15,
         "cro_name": "Planinska koza",
         "description": "Planinska koza je vrsta papkara koja živi u planinskim područjima Sjeverne Amerike."
-      },
+    },
     "Passerina ciris": {
         "label": 16,
         "cro_name": "Painted bunting",

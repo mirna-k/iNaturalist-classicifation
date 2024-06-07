@@ -132,7 +132,12 @@ def predict(image):
 
 classes = getSupportSets('iNaturalist dataset', 'label_map.json')
 
-st.title("Klasifikacija rijetkih životinja")
+st.title("Klasifikacija rijetkih biljaka i životinja")
+
+classification_method = st.selectbox(
+    'Odaberite model za klasifikaciju',
+    ('Swin_V2 - najbolji za klasifikaciju životinja', 'ResNet50 - najbolji za klasifikaciju biljaka', 'MyFSL')
+)
 
 uploaded_image = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
 
