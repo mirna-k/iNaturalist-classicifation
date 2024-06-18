@@ -1,156 +1,170 @@
-from PIL import Image
-import numpy as np
-import json
-import os
+import streamlit as st
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
-import streamlit as st
+from torchvision import models
+from PIL import Image
 
-class SupportSet():
-    def __init__(self, support_dir, class_name, label, cro_name, description, transform=None):
-        self.class_name = class_name
-        self.label = label
-        self.cro_name = cro_name
-        self.description = description
-        self.images = []
+from easyFSL_helper import *
+from dataset_helper import *
 
-        images_paths = [os.path.join(support_dir, filename) for filename in os.listdir(support_dir)]
-        to_tensor = transforms.ToTensor()
-        for image_path in images_paths:
-            image = Image.open(image_path)
-            if transform:
-                image = transform(image)
-            image = to_tensor(image)
-            self.images.append(image)
-
-        self.images = torch.stack(self.images)
-        self.len = len(self.images)
-
-    def __len__(self):
-        return self.len
-
-def getSupportSets(dataset_dir, class_label_map_json, transform=None):
-    sets = {}
-
-    with open(class_label_map_json, 'r') as f:
-        class_label_map = json.load(f)
-
-    for class_name, attributes in class_label_map.items():
-        label = attributes['label']
-        cro_name = attributes['cro_name']
-        description = attributes['description']
-        
-        class_dir = os.path.join(dataset_dir, class_name)
-        if os.path.isdir(class_dir):
-            support_dir = os.path.join(class_dir, "support")
-            sets[label] = SupportSet(support_dir, class_name, label, cro_name, description, transform)
-    return sets
-
-def getSupportSetsEmbeddings(model, support_sets, device):
-    embeddings = {}
-
-    for label in support_sets.keys():
-        embeddings[label] = torch.mean(model(support_sets[label].images.to(device)), dim=0)                #torch.Size([set_len, 256]) => #torch.Size([256])
-
-    return embeddings
-
-class SiameseNetwork(nn.Module):
-    def __init__(self, feature_extractor, threshold, support_sets, device):
-      super(SiameseNetwork, self).__init__()
-      self.feature_extractor = feature_extractor
-      self.threshold = threshold
-      self.support_sets = support_sets
-      self.device = device
-      self.support_sets_embeddings = getSupportSetsEmbeddings(self.feature_extractor, self.support_sets, self.device)
-      self.embeddings_support = torch.stack([self.support_sets_embeddings[label] for label in self.support_sets.keys()]) #torch.Size([cls_num, 256])
-
-    def forward(self, x):
-        # If input tensor has 3 dimensions, add a batch dimension
-        if x.dim() == 3:
-            x = x.unsqueeze(0)
-
-        embeddings = self.feature_extractor(x)  # torch.Size([img_num, 256])
-
-        embeddings = F.normalize(embeddings, p=2, dim=1)
-        embeddings_support = F.normalize(self.embeddings_support, p=2, dim=1)
-
-        cosine_similarities = torch.matmul(embeddings, embeddings_support.t())  # torch.Size([img_num, cls_num])
-
-        # Cosine similarity ranges from -1 to 1
-        _, max_class_indices = cosine_similarities.max(dim=1)
-
-        predictions = [max_class_indices[i].item() for i in range(x.size(0))]
-
-        return predictions
-
-class FeatureExtractor(nn.Module):
-    def __init__(self, base_model):
-        super(FeatureExtractor, self).__init__()
-        self.base_model = base_model
-        self.flatten = nn.Flatten(1,-1)
-        self.linear1 = nn.Linear(512, 512)
-        self.linear2 = nn.Linear(512, 256)
-        self.linear3 = nn.Linear(256, 128)
-        self.act_fn = nn.ReLU()
-
-    def forward(self, x):
-        x = self.base_model(x)
-        x = self.flatten(x)
-        x = self.linear1(x)
-        x = self.act_fn(x)
-        x = self.linear2(x)
-        x = self.act_fn(x)
-        x = self.linear3(x)
-        x = F.normalize(x)
-        return x
-
-feature_extractor = torch.load('model/feature_extractor.pth', map_location=torch.device('cpu'))
-
-siamese_network = torch.load('model/siamese_network.pth', map_location=torch.device('cpu'))
-
-support_sets_embeddings = torch.load('model/support_sets_embeddings.pth', map_location=torch.device('cpu'))
-
-def preprocess_image(image):
-    image = image.resize((180, 180))
-    image = np.array(image)
-    image = image / 255.0  # Normalize the image
-    to_tensor = transforms.ToTensor()
-    image = to_tensor(image)
-    return image
+@st.cache_resource
+def load_device():
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    print("Device", device) 
+    return device
 
 
-def predict(image):
-    processed_image = preprocess_image(image)
-    processed_image = processed_image.to(torch.float32)
+@st.cache_resource
+def load_data(data):
+    if data == "Animals":
+        dataset_path = 'animals_dataset'
+        labelmap_path = 'animals_label_map.json'
+    else:
+        dataset_path = 'flowers_dataset'
+        labelmap_path = 'flowers_label_map.json'
 
-    prediction = siamese_network(processed_image)
-    print(prediction)
-    return prediction
+    N = 20  # n_classes
+    K = 5   # n_support_images
+    n_query = 1
+
+    val_transform = transforms.Compose([
+        transforms.Resize((180, 180)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    batch_size = 128
+    loss_module = nn.CrossEntropyLoss()
+
+    class_data = ClassData.get_class_data(dataset_path, labelmap_path, val_transform)
+    dataset = CustomDataset(class_data)
+
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    print('ucitava data')
+    return N, K, n_query, val_transform, class_data, data_loader
 
 
-classes = getSupportSets('iNaturalist dataset', 'label_map.json')
+@st.cache_resource
+def load_model(model_type, data):
+    if model_type == 'Swin_V2 - najbolji za klasifikaciju životinja':
+        model = models.swin_v2_t(weights=models.Swin_V2_T_Weights.IMAGENET1K_V1)
+        model.head = nn.Flatten()
+    # elif model_type == 'ResNet50 - najbolji za klasifikaciju biljaka':
+    else:
+        resnet = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
+        resnet = nn.Sequential(*list(resnet.children())[:-1])
+        flatten_layer = nn.Flatten()
+        model = nn.Sequential(
+            resnet,
+            flatten_layer
+        )
 
-st.title("Klasifikacija rijetkih biljaka i životinja")
+    model = model.to(device)
+    print('ucitava m')
+    return model
 
-classification_method = st.selectbox(
-    'Odaberite model za klasifikaciju',
-    ('Swin_V2 - najbolji za klasifikaciju životinja', 'ResNet50 - najbolji za klasifikaciju biljaka', 'MyFSL')
+@st.cache_resource
+def load_support_set(_model, _data_loader, _N, _K, _n_query, model_type, data):
+    embeddings_df = predict_embeddings(_data_loader, _model, device=device)
+    features_dataset = FeaturesDataset.from_dataframe(embeddings_df)
+    task_sampler = TaskSampler(features_dataset, n_way=_N, n_shot=_K, n_query=_n_query, n_tasks=100)
+    features_loader = DataLoader(features_dataset, batch_sampler=task_sampler, pin_memory=True, collate_fn=task_sampler.episodic_collate_fn)
+    support_images, support_labels, query_images, query_labels, _ = next(iter(features_loader))
+    print('ucitava ss', model_type, data)
+    return support_images, support_labels
+
+def on_data_change():
+    st.session_state.model = None
+    st.session_state.classifier = None
+    st.session_state.data_loader = None
+
+def on_selectbox_change():
+    st.session_state.model = None
+    st.session_state.classifier = None
+    st.session_state.support_images = None
+    st.session_state.support_labels = None
+
+def predict(model, support_images, support_labels, query_images):
+    model.process_support_set(support_images, support_labels)
+    predictions = model(query_images).detach().data
+    pred_labels = torch.max(predictions, 1)[1]
+    print('vrti pred')
+    return pred_labels
+
+def get_query_images(image, model, device):
+    images = image.unsqueeze(0)
+    if device is not None:    
+        images = images.to(device)
+    print('vrti query')
+    return model(images).detach().cpu()
+
+
+device = load_device()
+
+st.title("Klasifikacija rijetkih životinja")
+
+if 'data' not in st.session_state:
+    st.session_state.data = "Animals"
+    st.session_state.model = None
+    st.session_state.classifier = None
+    st.session_state.N = None
+    st.session_state.K = None
+    st.session_state.n_query = None
+    st.session_state.val_transform = None
+    st.session_state.class_data = None
+    st.session_state.data_loader = None
+
+data = st.selectbox(
+    "Odaberite model za klasifikaciju", 
+    ["Animals",
+     "Plants"],
+    key='data',
+    on_change=on_data_change
 )
+
+if st.session_state.data_loader is None:
+    st.session_state.N, st.session_state.K, st.session_state.n_query, st.session_state.val_transform, st.session_state.class_data, st.session_state.data_loader = load_data(data)
+
+
+if 'model_type' not in st.session_state:
+    st.session_state.model_type = "Swin_V2 - najbolji za klasifikaciju životinja"
+    st.session_state.model = None
+    st.session_state.classifier = None
+    st.session_state.support_images = None
+    st.session_state.support_labels = None
+
+model_type = st.selectbox(
+    "Odaberite model za klasifikaciju", 
+    ["Swin_V2 - najbolji za klasifikaciju životinja",
+     "ResNet50 - najbolji za klasifikaciju biljaka"],
+    key='model_type',
+    on_change=on_selectbox_change
+)
+
+if st.session_state.model is None:
+    st.session_state.model =  load_model(st.session_state.model_type, data)
+    st.session_state.support_images, st.session_state.support_labels = load_support_set(st.session_state.model, st.session_state.data_loader, st.session_state.N, st.session_state.K, st.session_state.n_query, model_type, data)
+
+if st.session_state.classifier is None:
+    print('ucitava classifier')
+    st.session_state.classifier = PrototypicalNetworks(backbone=nn.Identity())
 
 uploaded_image = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
 
 if st.button('Process Image'):
     if uploaded_image is not None:
         image = Image.open(uploaded_image)
-        prediction_label = predict(image)
+        query_image = st.session_state.val_transform(image)
+        query_images = get_query_images(query_image, st.session_state.model, device)
+        prediction_label = predict(st.session_state.classifier, st.session_state.support_images, st.session_state.support_labels, query_images)
 
-        st.image(image, caption='Uploaded Image.', use_column_width=True)
-        
+        st.image(image, caption='Uploaded Image.')
         st.text("Processing the image...")
 
-        result = f"Predpostavljena vrsta je {classes[prediction_label[0]].class_name}\nNaziv: {classes[prediction_label[0]].cro_name}\n{classes[prediction_label[0]].description}"
+        result = f"Predpostavljena vrsta je {st.session_state.class_data[prediction_label.item()].class_name}\nNaziv: {st.session_state.class_data[prediction_label.item()].cro_name}\n{st.session_state.class_data[prediction_label.item()].description}"
         
         st.text(result)
     else:
